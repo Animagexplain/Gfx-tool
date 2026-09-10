@@ -1,0 +1,6 @@
+{
+  "name": "GFX Pro Booster",
+  "description": "Performance and graphics optimization tool for PUBG Mobile and BGMI using Shizuku API.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

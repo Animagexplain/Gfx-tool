@@ -1,0 +1,91 @@
+name: Build & Release Debug APK
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build Debug APK & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Accept Android SDK Licenses & Configure local.properties
+        run: |
+          yes | sdkmanager --licenses || true
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+      - name: Prepare Debug Keystore
+        run: |
+          if [ -f "debug.keystore.base64" ]; then
+            echo "Decoding debug.keystore from base64..."
+            base64 -d debug.keystore.base64 > debug.keystore
+          elif [ ! -f "debug.keystore" ]; then
+            echo "Auto-generating debug.keystore via keytool..."
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Ensure Gradle Wrapper Executable
+        run: |
+          chmod +x ./gradlew
+
+      - name: Build Debug APK
+        run: |
+          ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Verify APK Generated
+        run: |
+          ls -la app/build/outputs/apk/debug/
+          if [ ! -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+            echo "Error: app-debug.apk not found!"
+            exit 1
+          fi
+
+      - name: Upload APK as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v1.0.0"
+          name: "GFX Pro Booster v1.0.0"
+          body: |
+            ## GFX Pro Booster Debug APK Release
+            Automated continuous deployment build from commit `${{ github.sha }}`.
+
+            ### Features:
+            - Elevated UE4 GameUserSettings.ini optimization via Shizuku
+            - PUBG Mobile & BGMI graphic presets (Potato, 90 FPS Smooth, Balanced, HD)
+            - Safe configuration parser with timestamped `.bak` restore system
+            - Elevated background RAM cleaning
+
+            ### Download:
+            Download **app-debug.apk** below and install on Android (requires Shizuku or Simulation Mode).
+          files: app/build/outputs/apk/debug/app-debug.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

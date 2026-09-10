@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Crest / Shield -->
+    <path
+        android:pathData="M54,22 L78,32 L78,58 C78,72 67,82 54,86 C41,82 30,72 30,58 L30,32 Z"
+        android:strokeWidth="3.5"
+        android:strokeColor="#FF6E00"
+        android:fillColor="#22FF6E00" />
+
+    <!-- Inner Shield Accent -->
+    <path
+        android:pathData="M54,28 L72,36 L72,56 C72,67 64,75 54,79 C44,75 36,67 36,56 L36,36 Z"
+        android:strokeWidth="1.5"
+        android:strokeColor="#00E5FF"
+        android:fillColor="#1500E5FF" />
+
+    <!-- Glowing Turbo Lightning Bolt -->
+    <path
+        android:pathData="M56,33 L42,53 L53,53 L48,73 L66,51 L55,51 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="42"
+                android:startY="33"
+                android:endX="66"
+                android:endY="73"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFF176" />
+                <item android:offset="0.4" android:color="#FFB300" />
+                <item android:offset="1.0" android:color="#FF5722" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
