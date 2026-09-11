@@ -57,6 +57,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,6 +78,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.shizuku.ShizukuManager
+import com.example.shizuku.ShizukuStatus
 import com.example.ui.theme.CyberTeal
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.DarkBg
@@ -105,14 +107,19 @@ fun SplashPermissionScreen(
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
+    val shizukuManagerStatus by ShizukuManager.status.collectAsState()
+
     var isChecking by remember { mutableStateOf(false) }
-    var isRunning by remember { mutableStateOf(false) }
-    var isAuthorized by remember { mutableStateOf(false) }
+    var localRunning by remember { mutableStateOf(false) }
+    var localAuthorized by remember { mutableStateOf(false) }
     var isInstalled by remember { mutableStateOf(true) }
     var feedbackMessage by remember { mutableStateOf<String?>(null) }
     var requestAttempted by remember { mutableStateOf(false) }
 
-    // Direct check function using Shizuku.checkSelfPermission()
+    val isAuthorized = shizukuManagerStatus == ShizukuStatus.RUNNING_AND_GRANTED || localAuthorized
+    val isRunning = isAuthorized || shizukuManagerStatus == ShizukuStatus.RUNNING_NEEDS_PERMISSION || localRunning
+
+    // Direct check function using Shizuku.checkSelfPermission() and ShizukuManager.refreshStatus()
     val checkShizukuAuth = {
         isChecking = true
         try {
@@ -124,27 +131,28 @@ fun SplashPermissionScreen(
             } catch (e: Throwable) {
                 false
             }
-            isRunning = running
+            localRunning = running
 
             if (running) {
                 val permissionCode = Shizuku.checkSelfPermission()
                 val granted = permissionCode == PackageManager.PERMISSION_GRANTED
-                isAuthorized = granted
+                localAuthorized = granted
                 feedbackMessage = if (granted) {
                     "✓ Shizuku Authorized (Code: PERMISSION_GRANTED)"
                 } else {
                     "Shizuku running, authorization required"
                 }
             } else {
-                isAuthorized = false
+                localAuthorized = false
                 feedbackMessage = if (installed) {
                     "Shizuku service is not running"
                 } else {
                     "Shizuku Manager app not installed"
                 }
             }
+            ShizukuManager.refreshStatus()
         } catch (e: Throwable) {
-            isAuthorized = false
+            localAuthorized = false
             feedbackMessage = "Error checking permission: ${e.localizedMessage}"
         } finally {
             isChecking = false
@@ -156,7 +164,7 @@ fun SplashPermissionScreen(
         val permissionResultListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
             if (requestCode == ShizukuManager.REQUEST_CODE_PERMISSION) {
                 val granted = grantResult == PackageManager.PERMISSION_GRANTED
-                isAuthorized = granted
+                localAuthorized = granted
                 feedbackMessage = if (granted) {
                     "✓ Permission Granted via Shizuku!"
                 } else {
@@ -186,6 +194,13 @@ fun SplashPermissionScreen(
     // Initial check
     LaunchedEffect(Unit) {
         checkShizukuAuth()
+    }
+
+    // Auto-advance once authorized
+    LaunchedEffect(isAuthorized) {
+        if (isAuthorized) {
+            onPermissionGranted()
+        }
     }
 
     // Glowing animation for hero status

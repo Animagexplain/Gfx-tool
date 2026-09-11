@@ -67,16 +67,18 @@ enum class GraphicsQuality(val label: String, val iniValue: Int) {
 }
 
 enum class FpsCap(val fps: Int, val label: String, val frameRateLimit: Float) {
-    FPS_20(20, "20 FPS", 20f),
-    FPS_30(30, "30 FPS", 30f),
-    FPS_40(40, "40 FPS", 40f),
-    FPS_60(60, "60 FPS (Ultra)", 60f),
-    FPS_90(90, "90 FPS (Extreme)", 90f);
+    LOW(20, "Low (20 FPS)", 20f),
+    MEDIUM(25, "Medium (25 FPS)", 25f),
+    HIGH(30, "High (30 FPS)", 30f),
+    ULTRA(40, "Ultra (40 FPS)", 40f),
+    EXTREME(60, "Extreme (60 FPS)", 60f),
+    EXTREME_PLUS(90, "Extreme+ (90 FPS)", 90f),
+    ULTRA_EXTREME(120, "Ultra Extreme (120 FPS)", 120f);
 
     companion object {
         fun fromLimit(limit: Float): FpsCap {
             val rounded = limit.toInt()
-            return entries.minByOrNull { kotlin.math.abs(it.fps - rounded) } ?: FPS_60
+            return entries.minByOrNull { kotlin.math.abs(it.fps - rounded) } ?: EXTREME
         }
     }
 }
@@ -135,7 +137,7 @@ enum class GraphicsApi(val label: String, val iniValue: String) {
 data class GameSettings(
     val resolution: Resolution = Resolution.RES_720P,
     val graphicsQuality: GraphicsQuality = GraphicsQuality.SMOOTH,
-    val fpsCap: FpsCap = FpsCap.FPS_60,
+    val fpsCap: FpsCap = FpsCap.EXTREME,
     val antiAliasing: Boolean = false,
     val shadowQuality: ShadowQuality = ShadowQuality.DISABLED,
     val textureQuality: TextureQuality = TextureQuality.LOW,
@@ -151,6 +153,23 @@ enum class PresetType(
     val idealFor: String,
     val settings: GameSettings
 ) {
+    ULTRA_EXTREME_120(
+        title = "Ultra Extreme 120 FPS",
+        tag = "Max 120Hz",
+        description = "Unlocks maximum 120 FPS frame rate limit for ultra-high-refresh displays with competitive low latency.",
+        idealFor = "120Hz/144Hz Displays / Flagship Chipsets",
+        settings = GameSettings(
+            resolution = Resolution.RES_720P,
+            graphicsQuality = GraphicsQuality.SMOOTH,
+            fpsCap = FpsCap.ULTRA_EXTREME,
+            antiAliasing = false,
+            shadowQuality = ShadowQuality.DISABLED,
+            textureQuality = TextureQuality.LOW,
+            effectsQuality = EffectsQuality.LOW,
+            graphicsApi = GraphicsApi.VULKAN,
+            gpuOptimization = true
+        )
+    ),
     POTATO(
         title = "Potato Mode",
         tag = "Max FPS",
@@ -159,7 +178,7 @@ enum class PresetType(
         settings = GameSettings(
             resolution = Resolution.RES_360P,
             graphicsQuality = GraphicsQuality.SMOOTH,
-            fpsCap = FpsCap.FPS_60,
+            fpsCap = FpsCap.EXTREME,
             antiAliasing = false,
             shadowQuality = ShadowQuality.DISABLED,
             textureQuality = TextureQuality.LOW,
@@ -176,7 +195,7 @@ enum class PresetType(
         settings = GameSettings(
             resolution = Resolution.RES_720P,
             graphicsQuality = GraphicsQuality.SMOOTH,
-            fpsCap = FpsCap.FPS_90,
+            fpsCap = FpsCap.EXTREME_PLUS,
             antiAliasing = false,
             shadowQuality = ShadowQuality.DISABLED,
             textureQuality = TextureQuality.LOW,
@@ -193,7 +212,7 @@ enum class PresetType(
         settings = GameSettings(
             resolution = Resolution.RES_720P,
             graphicsQuality = GraphicsQuality.BALANCED,
-            fpsCap = FpsCap.FPS_60,
+            fpsCap = FpsCap.EXTREME,
             antiAliasing = true,
             shadowQuality = ShadowQuality.LOW,
             textureQuality = TextureQuality.MEDIUM,
@@ -210,7 +229,7 @@ enum class PresetType(
         settings = GameSettings(
             resolution = Resolution.RES_1080P,
             graphicsQuality = GraphicsQuality.HD,
-            fpsCap = FpsCap.FPS_60,
+            fpsCap = FpsCap.EXTREME,
             antiAliasing = true,
             shadowQuality = ShadowQuality.HIGH,
             textureQuality = TextureQuality.HIGH,

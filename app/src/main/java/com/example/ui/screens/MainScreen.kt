@@ -17,6 +17,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -43,6 +44,7 @@ import com.example.ui.theme.DarkBg
 import com.example.ui.theme.DarkSurface
 import com.example.ui.theme.DarkSurfaceBorder
 import com.example.ui.theme.DarkSurfaceElevated
+import com.example.ui.theme.MatrixGreen
 import com.example.ui.theme.NeonOrange
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
@@ -112,7 +114,16 @@ fun MainScreen(viewModel: GfxViewModel) {
             .fillMaxSize()
             .testTag("main_screen_scaffold"),
         containerColor = DarkBg,
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = DarkSurfaceElevated,
+                    contentColor = TextPrimary,
+                    actionColor = MatrixGreen
+                )
+            }
+        },
         bottomBar = {
             NavigationBar(
                 containerColor = DarkSurface,

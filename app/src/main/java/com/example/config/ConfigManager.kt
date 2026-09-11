@@ -232,7 +232,7 @@ class ConfigManager(
         if (settings.graphicsQuality.iniValue !in 0..4) {
             return "Invalid graphics quality level: ${settings.graphicsQuality.iniValue}"
         }
-        if (settings.fpsCap.fps !in 20..90) {
+        if (settings.fpsCap.fps !in 20..120) {
             return "Invalid FPS cap: ${settings.fpsCap.fps}"
         }
         if (settings.shadowQuality.iniValue !in 0..2) {

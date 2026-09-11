@@ -46,6 +46,8 @@ object DeviceProfiler {
 
     fun getRecommendationExplanation(info: DeviceInfo, preset: PresetType): String {
         return when (preset) {
+            PresetType.ULTRA_EXTREME_120 ->
+                "Detected ${String.format("%.1f", info.totalRamGb)} GB RAM on high-performance ${info.cpuModel}. Ultra Extreme Mode unlocks maximum 120 FPS high-refresh gaming with ultra-low frame times and peak responsiveness."
             PresetType.POTATO ->
                 "Detected ${String.format("%.1f", info.totalRamGb)} GB RAM on ${info.cpuModel}. Potato Mode is recommended to minimize memory pressure, reduce thermal throttling, and prevent game crashes on entry-level hardware."
             PresetType.SMOOTH ->

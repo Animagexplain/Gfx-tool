@@ -115,8 +115,9 @@ fun PresetsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 4 Presets
+        // Presets including 120 FPS
         val presets = listOf(
+            PresetType.ULTRA_EXTREME_120,
             PresetType.SMOOTH,
             PresetType.BALANCED,
             PresetType.HD,
@@ -129,6 +130,7 @@ fun PresetsScreen(
                     currentSettings.fpsCap == preset.settings.fpsCap
 
             val accentColor = when (preset) {
+                PresetType.ULTRA_EXTREME_120 -> CyberTeal
                 PresetType.POTATO -> ElectricGold
                 PresetType.SMOOTH -> NeonOrange
                 PresetType.BALANCED -> CyberTeal
@@ -165,6 +167,7 @@ fun PresetsScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 val icon = when (preset) {
+                                    PresetType.ULTRA_EXTREME_120 -> Icons.Default.Bolt
                                     PresetType.POTATO -> Icons.Default.FlashOn
                                     PresetType.SMOOTH -> Icons.Default.RocketLaunch
                                     PresetType.BALANCED -> Icons.Default.Speed
