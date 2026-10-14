@@ -10,6 +10,11 @@ enum class GamePackage(
         displayName = "PUBG Mobile (Global)",
         badge = "Global"
     ),
+    PUBG_FLASH(
+        packageName = "com.tencent.igfit",
+        displayName = "PUBG Mobile Flash",
+        badge = "Flash"
+    ),
     BGMI(
         packageName = "com.pubg.imobile",
         displayName = "BGMI (India)",
@@ -21,9 +26,14 @@ enum class GamePackage(
         badge = "VN"
     ),
     PUBG_KR(
-        packageName = "com.rekoo.pubgm",
+        packageName = "com.pubg.krmobile",
         displayName = "PUBG Mobile (Korea)",
         badge = "KR"
+    ),
+    PUBG_TW(
+        packageName = "com.rekoo.pubgm",
+        displayName = "PUBG Mobile (Taiwan)",
+        badge = "TW"
     );
 
     val configDirectory: String

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Memory
@@ -58,6 +59,7 @@ import com.example.data.model.PresetType
 import com.example.shizuku.ShizukuStatus
 import com.example.ui.components.CyberCard
 import com.example.ui.components.SectionHeader
+import com.example.ui.components.ShizukuConnectionStatusCard
 import com.example.ui.components.ShizukuStatusBadge
 import com.example.ui.theme.CyberTeal
 import com.example.ui.theme.DangerRed
@@ -87,7 +89,8 @@ fun ToolsScreen(
     onRestoreBackup: (BackupItem) -> Unit,
     onDeleteBackup: (BackupItem) -> Unit,
     onRestoreDefaultConfig: () -> Unit,
-    onRefreshBackups: () -> Unit
+    onRefreshBackups: () -> Unit,
+    onCleanShaderCache: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
 
@@ -124,6 +127,14 @@ fun ToolsScreen(
 
             ShizukuStatusBadge(status = shizukuStatus)
         }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Shizuku Elevated Connection Status Card
+        ShizukuConnectionStatusCard(
+            shizukuStatus = shizukuStatus,
+            showExpandableDetails = true
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -206,6 +217,24 @@ fun ToolsScreen(
                 Icon(imageVector = Icons.Default.CleaningServices, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Clean Background RAM (am kill-all)", fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            OutlinedButton(
+                onClick = onCleanShaderCache,
+                enabled = !isLoading,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .testTag("clean_shader_cache_button"),
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, NeonOrange.copy(alpha = 0.5f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonOrange)
+            ) {
+                Icon(imageVector = Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Clean ${selectedGame.badge} Shaders & Cache", fontWeight = FontWeight.SemiBold)
             }
         }
 

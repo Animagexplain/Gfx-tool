@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.shizuku.ShizukuManager
 import com.example.shizuku.ShizukuStatus
+import com.example.ui.components.ShizukuConnectionStatusCard
 import com.example.ui.components.ShizukuStatusBadge
 import com.example.ui.theme.CyberTeal
 import com.example.ui.theme.DangerRed

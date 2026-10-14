@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.DisplaySettings
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Tune
@@ -98,6 +99,7 @@ fun SettingsScreen(
     onUpdateGraphicsApi: (GraphicsApi) -> Unit,
     onUpdateGpuOptimization: (Boolean) -> Unit,
     onApplySettings: () -> Unit,
+    onApplyAndLaunch: () -> Unit = onApplySettings,
     onRestoreDefaults: () -> Unit,
     onRestoreLatestBackup: () -> Unit
 ) {
@@ -679,7 +681,31 @@ fun SettingsScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Save & Launch Game Button
+        Button(
+            onClick = onApplyAndLaunch,
+            enabled = !isLoading,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .testTag("apply_and_run_button"),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MatrixGreen,
+                contentColor = DarkBg
+            )
+        ) {
+            Icon(imageVector = Icons.Default.RocketLaunch, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Apply & Launch ${selectedGame.badge} Now",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
 
         // Revert & Restore defaults row
         Row(

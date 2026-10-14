@@ -2,6 +2,7 @@ package com.example.ui
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.lifecycle.AndroidViewModel
@@ -19,8 +20,13 @@ import com.example.data.model.PresetType
 import com.example.data.model.Resolution
 import com.example.data.model.ShadowQuality
 import com.example.data.model.TextureQuality
+import com.example.shizuku.ShizukuCommunicationException
 import com.example.shizuku.ShizukuManager
+import com.example.shizuku.ShizukuNotRunningException
+import com.example.shizuku.ShizukuPermissionDeniedException
 import com.example.shizuku.ShizukuStatus
+import com.example.ui.feedback.AppSnackbarVisuals
+import com.example.ui.feedback.FeedbackType
 import com.example.util.DeviceProfiler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,6 +68,9 @@ class GfxViewModel(application: Application) : AndroidViewModel(application) {
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
 
+    private val _snackbarVisuals = MutableStateFlow<AppSnackbarVisuals?>(null)
+    val snackbarVisuals: StateFlow<AppSnackbarVisuals?> = _snackbarVisuals.asStateFlow()
+
     private val _ramCleanResult = MutableStateFlow<String?>(null)
     val ramCleanResult: StateFlow<String?> = _ramCleanResult.asStateFlow()
 
@@ -72,6 +81,13 @@ class GfxViewModel(application: Application) : AndroidViewModel(application) {
         detectInstalledGames()
         refreshDeviceInfo()
         loadConfigForGame(_selectedGame.value)
+
+        // Listen for asynchronous Shizuku IPC communication errors
+        viewModelScope.launch {
+            shizukuManager.communicationErrorEvents.collect { error ->
+                handleShizukuCommunicationError(error)
+            }
+        }
     }
 
     override fun onCleared() {
@@ -180,18 +196,182 @@ class GfxViewModel(application: Application) : AndroidViewModel(application) {
         applySettings()
     }
 
-    fun applySettings() {
+    fun applySettings(andLaunch: Boolean = false) {
         viewModelScope.launch {
+            val targetGame = _selectedGame.value
+            val targetSettings = _currentSettings.value
+
+            // 1. Proactively verify Shizuku communication status if not in simulated/test mode
+            if (!shizukuManager.isTestMode()) {
+                if (!shizukuManager.isShizukuRunning()) {
+                    showShizukuErrorSnackbar(
+                        message = "Shizuku service is not running or responding.",
+                        detailSubtitle = "Service status: ${shizukuStatus.value.name}. Start Shizuku app or enable Test Mode.",
+                        actionLabel = "TEST MODE"
+                    ) {
+                        enableTestMode(true)
+                        applySettings(andLaunch)
+                    }
+                    return@launch
+                }
+
+                if (!shizukuManager.isAuthorized()) {
+                    showShizukuErrorSnackbar(
+                        message = "Shizuku permission not granted for Android/data access.",
+                        detailSubtitle = "GFX Pro Booster requires elevated authorization from Shizuku.",
+                        actionLabel = "GRANT"
+                    ) {
+                        shizukuManager.requestPermission()
+                    }
+                    return@launch
+                }
+            }
+
             _isLoading.value = true
-            val result = configManager.applySettings(_selectedGame.value, _currentSettings.value)
+            val result = configManager.applySettings(targetGame, targetSettings)
             _isLoading.value = false
+
             if (result.isSuccess) {
-                _statusMessage.value = result.getOrNull()
-                refreshBackups(_selectedGame.value)
+                val detail = "${targetSettings.resolution.label} • ${targetSettings.graphicsQuality.label} • ${targetSettings.fpsCap.label}"
+                refreshBackups(targetGame)
+                showSuccessSnackbar(
+                    message = "Graphics settings applied successfully for ${targetGame.displayName}!",
+                    customTitle = "SETTINGS APPLIED",
+                    detailSubtitle = "$detail | Auto-backup created",
+                    actionLabel = "RUN ${targetGame.badge}"
+                ) {
+                    launchGame(targetGame)
+                }
+                if (andLaunch) {
+                    launchGame(targetGame)
+                }
             } else {
-                _statusMessage.value = "Failed: ${result.exceptionOrNull()?.localizedMessage}"
+                val ex = result.exceptionOrNull()
+                if (ex is ShizukuCommunicationException ||
+                    ex?.message?.contains("Shizuku", ignoreCase = true) == true ||
+                    ex?.message?.contains("Permission", ignoreCase = true) == true ||
+                    ex?.message?.contains("Binder", ignoreCase = true) == true
+                ) {
+                    showShizukuErrorSnackbar(
+                        message = "Shizuku communication error: ${ex?.localizedMessage ?: "IPC write failed"}",
+                        detailSubtitle = "Check Shizuku status or switch to Test Mode",
+                        actionLabel = if (!shizukuManager.isAuthorized() && !shizukuManager.isTestMode()) "GRANT" else "RETRY"
+                    ) {
+                        if (!shizukuManager.isAuthorized() && !shizukuManager.isTestMode()) {
+                            shizukuManager.requestPermission()
+                        } else {
+                            applySettings(andLaunch)
+                        }
+                    }
+                } else {
+                    showErrorSnackbar(
+                        message = "Failed to apply settings: ${ex?.localizedMessage ?: "Unknown error"}",
+                        actionLabel = "RETRY"
+                    ) {
+                        applySettings(andLaunch)
+                    }
+                }
             }
         }
+    }
+
+    private fun handleShizukuCommunicationError(error: ShizukuCommunicationException) {
+        when (error) {
+            is ShizukuNotRunningException -> {
+                showShizukuErrorSnackbar(
+                    message = error.localizedMessage ?: "Shizuku service is not running or responding.",
+                    detailSubtitle = "Start Shizuku via wireless debugging/root or use Test Mode.",
+                    actionLabel = "TEST MODE"
+                ) {
+                    enableTestMode(true)
+                }
+            }
+            is ShizukuPermissionDeniedException -> {
+                showShizukuErrorSnackbar(
+                    message = error.localizedMessage ?: "Shizuku authorization has not been granted.",
+                    detailSubtitle = "Authorize GFX Pro Booster in the Shizuku app to write game files.",
+                    actionLabel = "GRANT"
+                ) {
+                    shizukuManager.requestPermission()
+                }
+            }
+            else -> {
+                showShizukuErrorSnackbar(
+                    message = error.localizedMessage ?: "Error communicating with Shizuku.",
+                    detailSubtitle = "Elevated operation failed.",
+                    actionLabel = "RETRY"
+                ) {
+                    refreshShizukuStatus()
+                }
+            }
+        }
+    }
+
+    fun showSuccessSnackbar(
+        message: String,
+        customTitle: String? = "SETTINGS APPLIED",
+        detailSubtitle: String? = null,
+        actionLabel: String? = "RUN GAME",
+        onAction: (() -> Unit)? = null
+    ) {
+        _statusMessage.value = message
+        _snackbarVisuals.value = AppSnackbarVisuals(
+            message = message,
+            actionLabel = actionLabel,
+            type = FeedbackType.SUCCESS,
+            customTitle = customTitle,
+            detailSubtitle = detailSubtitle,
+            onAction = onAction
+        )
+    }
+
+    fun showShizukuErrorSnackbar(
+        message: String,
+        detailSubtitle: String? = null,
+        actionLabel: String? = "RETRY",
+        onAction: (() -> Unit)? = null
+    ) {
+        _statusMessage.value = "Shizuku error: $message"
+        _snackbarVisuals.value = AppSnackbarVisuals(
+            message = message,
+            actionLabel = actionLabel,
+            type = FeedbackType.SHIZUKU_ERROR,
+            customTitle = "SHIZUKU IPC ERROR",
+            detailSubtitle = detailSubtitle,
+            onAction = onAction
+        )
+    }
+
+    fun showErrorSnackbar(
+        message: String,
+        actionLabel: String? = "DISMISS",
+        onAction: (() -> Unit)? = null
+    ) {
+        _statusMessage.value = message
+        _snackbarVisuals.value = AppSnackbarVisuals(
+            message = message,
+            actionLabel = actionLabel,
+            type = FeedbackType.GENERIC_ERROR,
+            onAction = onAction
+        )
+    }
+
+    fun showInfoSnackbar(
+        message: String,
+        actionLabel: String? = null,
+        onAction: (() -> Unit)? = null
+    ) {
+        _statusMessage.value = message
+        _snackbarVisuals.value = AppSnackbarVisuals(
+            message = message,
+            actionLabel = actionLabel,
+            type = FeedbackType.INFO,
+            onAction = onAction
+        )
+    }
+
+    fun clearSnackbarVisuals() {
+        _snackbarVisuals.value = null
     }
 
     fun restoreLatestBackup() {
@@ -200,10 +380,21 @@ class GfxViewModel(application: Application) : AndroidViewModel(application) {
             val result = configManager.restoreLatestBackup(_selectedGame.value)
             _isLoading.value = false
             if (result.isSuccess) {
-                _statusMessage.value = result.getOrNull()
                 loadConfigForGame(_selectedGame.value)
+                showSuccessSnackbar(
+                    message = "Configuration restored from backup for ${_selectedGame.value.displayName}!",
+                    customTitle = "BACKUP RESTORED",
+                    actionLabel = "RUN ${_selectedGame.value.badge}"
+                ) {
+                    launchGame(_selectedGame.value)
+                }
             } else {
-                _statusMessage.value = "Restore failed: ${result.exceptionOrNull()?.localizedMessage}"
+                val ex = result.exceptionOrNull()
+                if (ex is ShizukuCommunicationException) {
+                    showShizukuErrorSnackbar("Shizuku error restoring backup: ${ex.localizedMessage}")
+                } else {
+                    showErrorSnackbar("Restore failed: ${ex?.localizedMessage}")
+                }
             }
         }
     }
@@ -214,10 +405,21 @@ class GfxViewModel(application: Application) : AndroidViewModel(application) {
             val result = configManager.restoreSpecificBackup(_selectedGame.value, backup)
             _isLoading.value = false
             if (result.isSuccess) {
-                _statusMessage.value = result.getOrNull()
                 loadConfigForGame(_selectedGame.value)
+                showSuccessSnackbar(
+                    message = "Successfully restored backup: ${backup.fileName}",
+                    customTitle = "RESTORE COMPLETE",
+                    actionLabel = "RUN ${_selectedGame.value.badge}"
+                ) {
+                    launchGame(_selectedGame.value)
+                }
             } else {
-                _statusMessage.value = "Failed to restore: ${result.exceptionOrNull()?.localizedMessage}"
+                val ex = result.exceptionOrNull()
+                if (ex is ShizukuCommunicationException) {
+                    showShizukuErrorSnackbar("Shizuku error restoring backup: ${ex.localizedMessage}")
+                } else {
+                    showErrorSnackbar("Failed to restore ${backup.fileName}: ${ex?.localizedMessage}")
+                }
             }
         }
     }
@@ -226,10 +428,10 @@ class GfxViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val deleted = configManager.deleteBackup(backup)
             if (deleted) {
-                _statusMessage.value = "Backup deleted: ${backup.fileName}"
+                showInfoSnackbar("Backup deleted: ${backup.fileName}")
                 refreshBackups(_selectedGame.value)
             } else {
-                _statusMessage.value = "Failed to delete backup"
+                showErrorSnackbar("Failed to delete backup ${backup.fileName}")
             }
         }
     }
@@ -240,10 +442,21 @@ class GfxViewModel(application: Application) : AndroidViewModel(application) {
             val result = configManager.restoreDefaultConfig(_selectedGame.value)
             _isLoading.value = false
             if (result.isSuccess) {
-                _statusMessage.value = result.getOrNull()
                 loadConfigForGame(_selectedGame.value)
+                showSuccessSnackbar(
+                    message = "Reset to clean default settings for ${_selectedGame.value.displayName}!",
+                    customTitle = "DEFAULTS RESTORED",
+                    actionLabel = "RUN ${_selectedGame.value.badge}"
+                ) {
+                    launchGame(_selectedGame.value)
+                }
             } else {
-                _statusMessage.value = "Failed: ${result.exceptionOrNull()?.localizedMessage}"
+                val ex = result.exceptionOrNull()
+                if (ex is ShizukuCommunicationException) {
+                    showShizukuErrorSnackbar("Shizuku communication error: ${ex.localizedMessage}")
+                } else {
+                    showErrorSnackbar("Failed to restore defaults: ${ex?.localizedMessage}")
+                }
             }
         }
     }
@@ -255,12 +468,22 @@ class GfxViewModel(application: Application) : AndroidViewModel(application) {
             _isLoading.value = false
             refreshDeviceInfo()
             if (result.isSuccess) {
-                _ramCleanResult.value = result.getOrNull()
-                _statusMessage.value = result.getOrNull()
+                val msg = result.getOrNull() ?: "RAM optimized via elevated shell"
+                _ramCleanResult.value = msg
+                showSuccessSnackbar(
+                    message = msg,
+                    customTitle = "RAM OPTIMIZED",
+                    actionLabel = "DISMISS"
+                )
             } else {
                 val err = result.exceptionOrNull()?.localizedMessage ?: "RAM clean failed"
                 _ramCleanResult.value = err
-                _statusMessage.value = err
+                showShizukuErrorSnackbar(
+                    message = "Shizuku command execution failed: $err",
+                    actionLabel = "RETRY"
+                ) {
+                    cleanRam()
+                }
             }
         }
     }
@@ -275,6 +498,48 @@ class GfxViewModel(application: Application) : AndroidViewModel(application) {
 
     fun enableTestMode(enabled: Boolean) {
         shizukuManager.enableTestMode(enabled)
+    }
+
+    fun launchGame(game: GamePackage = _selectedGame.value): Boolean {
+        val app = getApplication<Application>()
+        val pm = app.packageManager
+        val intent = pm.getLaunchIntentForPackage(game.packageName)
+        return if (intent != null) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            app.startActivity(intent)
+            showInfoSnackbar("Launching ${game.displayName}...")
+            true
+        } else {
+            showErrorSnackbar("${game.displayName} (${game.badge}) is not installed on this device")
+            false
+        }
+    }
+
+    fun cleanGameShaderCache(game: GamePackage = _selectedGame.value) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val cacheDir = "/storage/emulated/0/Android/data/${game.packageName}/files/UE4Game/ShadowTrackerExtra/ShadowTrackerExtra/Saved/Logs"
+            val shaderDir = "/storage/emulated/0/Android/data/${game.packageName}/files/UE4Game/ShadowTrackerExtra/ShadowTrackerExtra/Saved/Paks/cache"
+            val cmd = "rm -rf '$cacheDir'/* '$shaderDir'/* 2>/dev/null; echo 'OK'"
+            val res = shizukuManager.executeShell(cmd)
+            _isLoading.value = false
+            if (res.isSuccess) {
+                showSuccessSnackbar(
+                    message = "Shader cache and log files cleaned for ${game.displayName}!",
+                    customTitle = "CACHE PURGED",
+                    actionLabel = "RUN ${game.badge}"
+                ) {
+                    launchGame(game)
+                }
+            } else {
+                showShizukuErrorSnackbar(
+                    message = "Shizuku failed to clear shader cache: ${res.stderr.ifBlank { "Exit code ${res.exitCode}" }}",
+                    actionLabel = "RETRY"
+                ) {
+                    cleanGameShaderCache(game)
+                }
+            }
+        }
     }
 
     fun clearStatusMessage() {

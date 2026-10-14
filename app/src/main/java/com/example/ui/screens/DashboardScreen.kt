@@ -22,11 +22,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Tune
@@ -56,6 +58,7 @@ import com.example.shizuku.ShizukuStatus
 import com.example.ui.components.CyberCard
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.SettingSummaryPill
+import com.example.ui.components.ShizukuConnectionStatusCard
 import com.example.ui.components.ShizukuStatusBadge
 import com.example.ui.theme.CyberTeal
 import com.example.ui.theme.DarkBg
@@ -85,7 +88,8 @@ fun DashboardScreen(
     onQuickRamClean: () -> Unit,
     onRestoreLatestBackup: () -> Unit,
     onOpenBackupManager: () -> Unit,
-    onOpenShizukuStatus: () -> Unit
+    onOpenShizukuStatus: () -> Unit,
+    onLaunchGame: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
 
@@ -125,7 +129,16 @@ fun DashboardScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Verified Shizuku Connection Status Card
+        ShizukuConnectionStatusCard(
+            shizukuStatus = shizukuStatus,
+            onRefresh = { onOpenShizukuStatus() },
+            showExpandableDetails = true
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Game Selector Chips
         SectionHeader(
@@ -279,6 +292,46 @@ fun DashboardScreen(
                     accentColor = CyberTeal,
                     modifier = Modifier.weight(1f)
                 )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Action Buttons: Run Game & One-Tap Presets
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = onLaunchGame,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .testTag("launch_game_button"),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MatrixGreen,
+                        contentColor = DarkBg
+                    )
+                ) {
+                    Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Run ${selectedGame.badge}", fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = onNavigateToPresets,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .testTag("dashboard_presets_button"),
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CyberTeal.copy(alpha = 0.6f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = CyberTeal)
+                ) {
+                    Icon(imageVector = Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("1-Tap Presets", fontWeight = FontWeight.SemiBold)
+                }
             }
         }
 

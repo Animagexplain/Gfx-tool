@@ -20,6 +20,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.shizuku.ShizukuStatus
 import com.example.ui.GfxViewModel
+import com.example.ui.feedback.AppFeedbackSnackbar
 import com.example.ui.theme.CyberTeal
 import com.example.ui.theme.DarkBg
 import com.example.ui.theme.DarkSurface
@@ -67,6 +69,7 @@ fun MainScreen(viewModel: GfxViewModel) {
     val deviceInfo by viewModel.deviceInfo.collectAsState()
     val recommendedPreset by viewModel.recommendedPreset.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
+    val snackbarVisuals by viewModel.snackbarVisuals.collectAsState()
     val ramCleanResult by viewModel.ramCleanResult.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
@@ -76,10 +79,14 @@ fun MainScreen(viewModel: GfxViewModel) {
 
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(statusMessage) {
-        statusMessage?.let { msg ->
-            snackbarHostState.showSnackbar(msg)
-            viewModel.clearStatusMessage()
+    // Handle structured AppSnackbarVisuals feedback events
+    LaunchedEffect(snackbarVisuals) {
+        snackbarVisuals?.let { visuals ->
+            val result = snackbarHostState.showSnackbar(visuals)
+            if (result == SnackbarResult.ActionPerformed) {
+                visuals.onAction?.invoke()
+            }
+            viewModel.clearSnackbarVisuals()
         }
     }
 
@@ -115,13 +122,11 @@ fun MainScreen(viewModel: GfxViewModel) {
             .testTag("main_screen_scaffold"),
         containerColor = DarkBg,
         snackbarHost = {
-            SnackbarHost(hostState = snackbarHostState) { data ->
-                Snackbar(
-                    snackbarData = data,
-                    containerColor = DarkSurfaceElevated,
-                    contentColor = TextPrimary,
-                    actionColor = MatrixGreen
-                )
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.testTag("app_snackbar_host")
+            ) { data ->
+                AppFeedbackSnackbar(snackbarData = data)
             }
         },
         bottomBar = {
@@ -183,7 +188,8 @@ fun MainScreen(viewModel: GfxViewModel) {
                         onQuickRamClean = { viewModel.cleanRam() },
                         onRestoreLatestBackup = { viewModel.restoreLatestBackup() },
                         onOpenBackupManager = { showBackupManagerSheet = true },
-                        onOpenShizukuStatus = { showPermissionScreenManually = true }
+                        onOpenShizukuStatus = { showPermissionScreenManually = true },
+                        onLaunchGame = { viewModel.launchGame() }
                     )
 
                     NavTab.SETTINGS -> SettingsScreen(
@@ -200,6 +206,7 @@ fun MainScreen(viewModel: GfxViewModel) {
                         onUpdateGraphicsApi = { viewModel.updateGraphicsApi(it) },
                         onUpdateGpuOptimization = { viewModel.updateGpuOptimization(it) },
                         onApplySettings = { viewModel.applySettings() },
+                        onApplyAndLaunch = { viewModel.applySettings(andLaunch = true) },
                         onRestoreDefaults = { viewModel.restoreDefaultConfig() },
                         onRestoreLatestBackup = { viewModel.restoreLatestBackup() }
                     )
@@ -224,7 +231,8 @@ fun MainScreen(viewModel: GfxViewModel) {
                         onRestoreBackup = { viewModel.restoreBackup(it) },
                         onDeleteBackup = { viewModel.deleteBackup(it) },
                         onRestoreDefaultConfig = { viewModel.restoreDefaultConfig() },
-                        onRefreshBackups = { viewModel.refreshBackups() }
+                        onRefreshBackups = { viewModel.refreshBackups() },
+                        onCleanShaderCache = { viewModel.cleanGameShaderCache() }
                     )
                 }
             }

@@ -5,8 +5,11 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
@@ -47,6 +50,9 @@ object ShizukuManager {
 
     private var isSimulated: Boolean = false
 
+    private val _communicationErrorEvents = MutableSharedFlow<ShizukuCommunicationException>(extraBufferCapacity = 8)
+    val communicationErrorEvents: SharedFlow<ShizukuCommunicationException> = _communicationErrorEvents.asSharedFlow()
+
     private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
         Log.d(TAG, "Shizuku binder received")
         refreshStatus()
@@ -55,6 +61,9 @@ object ShizukuManager {
     private val binderDeadListener = Shizuku.OnBinderDeadListener {
         Log.d(TAG, "Shizuku binder dead")
         refreshStatus()
+        _communicationErrorEvents.tryEmit(
+            ShizukuNotRunningException("Shizuku binder died unexpectedly. Service connection lost.")
+        )
     }
 
     private val requestPermissionResultListener =
@@ -320,11 +329,23 @@ object ShizukuManager {
             }
         }
 
+        if (!isShizukuRunning()) {
+            val ex = ShizukuNotRunningException("Cannot read configuration: Shizuku service is not running.")
+            _communicationErrorEvents.tryEmit(ex)
+            return@withContext Result.failure(ex)
+        }
+        if (!isAuthorized()) {
+            val ex = ShizukuPermissionDeniedException("Cannot read configuration: Shizuku authorization is missing.")
+            _communicationErrorEvents.tryEmit(ex)
+            return@withContext Result.failure(ex)
+        }
+
         val result = executeShell("cat \"$path\"")
         if (result.isSuccess) {
             Result.success(result.stdout)
         } else {
-            Result.failure(Exception("Failed to read file: ${result.stderr.ifBlank { "Exit code ${result.exitCode}" }}"))
+            val ex = ShizukuFileAccessException(path, result.stderr.ifBlank { "Exit code ${result.exitCode}" })
+            Result.failure(ex)
         }
     }
 
@@ -334,6 +355,17 @@ object ShizukuManager {
             simFile.parentFile?.mkdirs()
             simFile.writeText(content)
             return@withContext Result.success(Unit)
+        }
+
+        if (!isShizukuRunning()) {
+            val ex = ShizukuNotRunningException("Cannot write settings: Shizuku server service is stopped or unreachable.")
+            _communicationErrorEvents.tryEmit(ex)
+            return@withContext Result.failure(ex)
+        }
+        if (!isAuthorized()) {
+            val ex = ShizukuPermissionDeniedException("Cannot write settings: Shizuku permission has not been granted.")
+            _communicationErrorEvents.tryEmit(ex)
+            return@withContext Result.failure(ex)
         }
 
         try {
@@ -352,10 +384,14 @@ object ShizukuManager {
                 Result.success(Unit)
             } else {
                 val err = process.errorStream.bufferedReader().use { it.readText() }
-                Result.failure(Exception("Failed to write to $path: $err"))
+                val ex = ShizukuFileAccessException(path, "Failed to write config via Shizuku: $err (exit $exitCode)")
+                _communicationErrorEvents.tryEmit(ex)
+                Result.failure(ex)
             }
         } catch (e: Throwable) {
-            Result.failure(e)
+            val ex = ShizukuFileAccessException(path, e.localizedMessage ?: "Unknown Shizuku IPC error", e)
+            _communicationErrorEvents.tryEmit(ex)
+            Result.failure(ex)
         }
     }
 
@@ -372,6 +408,17 @@ object ShizukuManager {
             }
         }
 
+        if (!isShizukuRunning()) {
+            val ex = ShizukuNotRunningException("Cannot backup configuration: Shizuku service is not running.")
+            _communicationErrorEvents.tryEmit(ex)
+            return@withContext Result.failure(ex)
+        }
+        if (!isAuthorized()) {
+            val ex = ShizukuPermissionDeniedException("Cannot backup configuration: Shizuku permission not granted.")
+            _communicationErrorEvents.tryEmit(ex)
+            return@withContext Result.failure(ex)
+        }
+
         val destDir = File(destPath).parent ?: ""
         if (destDir.isNotBlank()) {
             executeShell("mkdir -p \"$destDir\"")
@@ -380,7 +427,9 @@ object ShizukuManager {
         if (result.isSuccess) {
             Result.success(Unit)
         } else {
-            Result.failure(Exception("cp failed: ${result.stderr}"))
+            val ex = ShizukuFileAccessException(destPath, "Shizuku cp failed: ${result.stderr}")
+            _communicationErrorEvents.tryEmit(ex)
+            Result.failure(ex)
         }
     }
 
